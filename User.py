@@ -37,17 +37,17 @@ class User:
     predictor_paths.append("ML_Modeling_Files/TIFF_Files_For_Model/Chimney_Springs_P-dry/WSI.tif")
 
     # # Target_Path (this represents the path to the file that we are trying to make predictions for)
-    target_path = "ML_Modeling_Files/TIFF_Files_For_Model/Chimney_Springs_P-dry/PSWE_2020_SnowPALM_Map.tif"
+    target_path = "ML_Modeling_Files/TIFF_Files_For_Model/Chimney_Springs_P-dry/SCD_2020_SnowPALM_Map.tif"
     
     # # this instantiates a Feature_Engineering object
     feature_engineering_object = Feature_Engineering()
 
     # # this calls the required method to create the correlation matrix, scatter plots, and
-    feature_engineering_object.create_visualizations_include_scatter(predictor_paths, target_path, "PSWE_2020_SnowPALM_Map")
+    feature_engineering_object.create_visualizations_include_scatter(predictor_paths, target_path, "SCD_2020_SnowPALM_Map")
 
     # create the ML_Modeling object and create the optimal ML_Model
     ml_modeling_object = ML_Modeling()
-    ml_modeling_object.create_ML_Model(predictor_paths, target_path, "PSWE_2020_SnowPALM_Map")
+    ml_modeling_object.create_ML_Model(predictor_paths, target_path, "SCD_2020_SnowPALM_Map")
     ml_modeling_object.read_joblib_metric("et_metrics_train.joblib")
     ml_modeling_object.read_joblib_metric("et_metrics_test.joblib")
     ml_modeling_object.read_joblib_metric("lgbm_metrics_train.joblib")
@@ -107,4 +107,3 @@ class User:
     # ml_modeling_object.read_joblib_metric("ML_Modeling_Files/TIFF_Files_For_Model/Baker_Butte_PSWE_2020/best_model.joblib")
     # os.system("say 'Task complete'")
     # os.system("say 'Task complete'")
-

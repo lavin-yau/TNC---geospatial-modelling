@@ -1,0 +1,14 @@
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+
+# Generated outputs
+*.joblib
+*_actual.png
+*_predicted.png
+*_correlation_matrix.png
+*_pair_plot.png
+*_scatter_plots.png
+*_predicted_versus_actual.png
+*_residual_histogram.png
+*_residual_versus_predicted.png

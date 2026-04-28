@@ -81,7 +81,7 @@ class ML_Modeling:
 
         return pd.DataFrame(columns).dropna()
         
-    def preprocess_data(self, predictor_paths, target_path):
+    def preprocess_data(self, predictor_paths, target_path, sample_rows=None, random_state=42):
         # convert the GeoTiff file into a dataframe
         raw_datafile = self.geotiffs_to_dataframe(predictor_paths, target_path)
         # replace values of -9999 with NaN (to represent missing values)
@@ -93,6 +93,8 @@ class ML_Modeling:
         # One-hot encode them (so that the model can better understand the data)
         # drop_first=True (avoids multicollinearity)
         raw_datafile = pd.get_dummies(raw_datafile, columns=cat_cols, drop_first=True)
+        if sample_rows is not None and len(raw_datafile) > sample_rows:
+            raw_datafile = raw_datafile.sample(n=sample_rows, random_state=random_state)
         return raw_datafile
     
     ''''
@@ -237,12 +239,14 @@ class ML_Modeling:
     metrics. In addition, this method also creates and stores visualizations, analyzing the residual plot along with the
     RMSE.
     '''
-    def create_ML_Model(self, predictor_paths, target_path, predictor):
-        processed_df = self.preprocess_data(predictor_paths, target_path)
+    def create_ML_Model(self, predictor_paths, target_path, predictor, model_types=None, sample_rows=None, output_dir=".", save_all_metrics=True):
+        processed_df = self.preprocess_data(predictor_paths, target_path, sample_rows=sample_rows)
 
         # reduce size (tradeoff: worser accuracy but much faster runtime)
-        if len(processed_df) > 50000:
+        if sample_rows is None and len(processed_df) > 50000:
             processed_df = processed_df.sample(n=50_000)
+        output_dir_path = Path(output_dir)
+        output_dir_path.mkdir(parents=True, exist_ok=True)
         # get predictor variable as a numpy array and predictor variables as a matrix
         col_y = processed_df[predictor]
         df_x = processed_df.drop(predictor, axis=1)
@@ -251,76 +255,46 @@ class ML_Modeling:
         X_train, X_test, y_train, y_test = train_test_split(
         df_x, col_y, test_size=0.2)
         
-        # models to train: RandomForest, XGBoost, Gradient Boosting, LightGBM, ExtraTrees
+        default_model_types = ["Random Forest", "Extra Trees", "XGBoost", "LGBM"]
+        model_types = model_types or default_model_types
+        model_results = []
 
-        # find ideal hyperparameters for each model
-        # use neg_mean_squared_error for mean squared error, neg_mean_absolute_error for mean absolute error, or r2 for R^2 error
-        random_forest_model = self.quick_hyperparameter_tuning("Random Forest", "neg_mean_squared_error", X_train, y_train)
-        extra_trees_model = self.quick_hyperparameter_tuning("Extra Trees", "neg_mean_squared_error", X_train, y_train)
-        xg_boost_model = self.quick_hyperparameter_tuning("XGBoost", "neg_mean_squared_error", X_train, y_train)
-        # gbm_boost_model = self.quick_hyperparameter_tuning("Gradient Boosting", "neg_mean_squared_error", X_train, y_train)
-        lgbm_boost_model = self.quick_hyperparameter_tuning("LGBM", "neg_mean_squared_error", X_train, y_train)
+        for model_type in model_types:
+            model = self.quick_hyperparameter_tuning(model_type, "neg_mean_squared_error", X_train, y_train)
+            model.fit(X_train, y_train)
+            predictions_train = model.predict(X_train)
+            predictions_test = model.predict(X_test)
+            metrics_train = self.calculate_metrics(y_train, predictions_train)
+            metrics_test = self.calculate_metrics(y_test, predictions_test)
+            model_key = {
+                "Random Forest": "rf",
+                "Extra Trees": "et",
+                "XGBoost": "xgb",
+                "LGBM": "lgbm",
+                "Gradient Boosting": "gbm",
+            }.get(model_type, model_type.lower().replace(" ", "_"))
 
-        # actually train the best models
-        random_forest_model.fit(X_train, y_train)
-        extra_trees_model.fit(X_train, y_train)
-        xg_boost_model.fit(X_train, y_train)
-        lgbm_boost_model.fit(X_train, y_train)
+            self.plot_model_residuals(str(Path(output_dir) / model_key), y_test, predictions_test)
+            model_results.append({
+                "model_type": model_type,
+                "model_key": model_key,
+                "model": model,
+                "metrics_train": metrics_train,
+                "metrics_test": metrics_test,
+            })
 
-        random_forest_predictions_train = random_forest_model.predict(X_train)
-        extra_trees_predictions_train = extra_trees_model.predict(X_train)
-        xg_boost_predictions_train = xg_boost_model.predict(X_train)
-        lgbm_boost_predictions_train = lgbm_boost_model.predict(X_train)
+        curr_best = min(model_results, key=lambda item: item["metrics_test"]["RMSE"])
+        curr_best_model = curr_best["model"]
 
-        rf_metrics_train = self.calculate_metrics(y_train, random_forest_predictions_train)
-        et_metrics_train = self.calculate_metrics(y_train, extra_trees_predictions_train)
-        xgb_metrics_train = self.calculate_metrics(y_train, xg_boost_predictions_train)
-        lgbm_metrics_train = self.calculate_metrics(y_train, lgbm_boost_predictions_train)
+        if save_all_metrics:
+            for result in model_results:
+                model_key = result["model_key"]
+                joblib.dump(result["metrics_test"], output_dir_path / f"{model_key}_metrics_test.joblib")
+                joblib.dump(result["metrics_train"], output_dir_path / f"{model_key}_metrics_train.joblib")
 
+        joblib.dump(curr_best_model, output_dir_path / "best_model.joblib")
 
-        random_forest_predictions = random_forest_model.predict(X_test)
-        extra_trees_predictions = extra_trees_model.predict(X_test)
-        xg_boost_predictions = xg_boost_model.predict(X_test)
-        lgbm_boost_predictions = lgbm_boost_model.predict(X_test)
-
-        rf_metrics = self.calculate_metrics(y_test, random_forest_predictions)
-        et_metrics = self.calculate_metrics(y_test, extra_trees_predictions)
-        xgb_metrics = self.calculate_metrics(y_test, xg_boost_predictions)
-        lgbm_metrics = self.calculate_metrics(y_test, lgbm_boost_predictions)
-
-
-        self.plot_model_residuals("rf", y_test, random_forest_predictions)
-        self.plot_model_residuals("et", y_test, extra_trees_predictions)
-        self.plot_model_residuals("xgb", y_test, xg_boost_predictions)
-        self.plot_model_residuals("lgbm", y_test, lgbm_boost_predictions)
-
-        # choose the model which performed the best on rmse
-        curr_best_model = random_forest_model
-        curr_best_metric = rf_metrics
-        if (et_metrics["RMSE"] < curr_best_metric["RMSE"]):
-            curr_best_model = extra_trees_model
-            curr_best_metric = et_metrics
-            curr_best_predictions = extra_trees_predictions
-        if (xgb_metrics["RMSE"] < curr_best_metric["RMSE"]):
-            curr_best_model = xg_boost_model
-            curr_best_metric = xgb_metrics
-        # if (gbm_metrics["RMSE"] < curr_best_metric["RMSE"]):
-        #     curr_best_model = gbm_boost_model
-        #     curr_best_metric = gbm_metrics
-        if (lgbm_metrics["RMSE"] < curr_best_metric["RMSE"]):
-            curr_best_model = lgbm_boost_model
-            curr_best_metric = lgbm_metrics
-        joblib.dump(curr_best_model, "best_model.joblib")
-        joblib.dump(rf_metrics, "rf_metrics_test.joblib")
-        joblib.dump(et_metrics, "et_metrics_test.joblib")
-        joblib.dump(xgb_metrics, "xgb_metrics_test.joblib")
-        joblib.dump(lgbm_metrics, "lgbm_metrics_test.joblib")
-        joblib.dump(rf_metrics_train, "rf_metrics_train.joblib")
-        joblib.dump(et_metrics_train, "et_metrics_train.joblib")
-        joblib.dump(xgb_metrics_train, "xgb_metrics_train.joblib")
-        joblib.dump(lgbm_metrics_train, "lgbm_metrics_train.joblib")
-
-        self.plot_maps(target_path, predictor_paths, curr_best_model)
+        self.plot_maps(target_path, predictor_paths, curr_best_model, output_dir=output_dir)
     '''
     Reads the joblib file and prints out the corresponding output. This method is useful since .joblib usually means the file
     is stored in a binary format so we need to process it to print the corresponding text.
@@ -384,7 +358,7 @@ class ML_Modeling:
     The purpose of this function is to plot the original TIF file of the variable we are trying to output with the
     response our model generated per pixel, allowing for future analysis.
     '''
-    def plot_maps(self, target_path, predictor_paths, model):
+    def plot_maps(self, target_path, predictor_paths, model, output_dir="."):
         # Read values from the original tif file and store the 2D grid
         df = self.geotiffs_to_dataframe(predictor_paths, target_path)
         df = df.drop(columns=[Path(target_path).stem])
@@ -402,16 +376,19 @@ class ML_Modeling:
         predicted_data = predicted_data.reshape(height, width)
 
         # Create and save the original and model plots
+        output_dir_path = Path(output_dir)
+        output_dir_path.mkdir(parents=True, exist_ok=True)
+
         plt.figure(figsize=(6, 5))
         plt.imshow(actual_data, interpolation="nearest")
         plt.title(Path(target_path).stem + "_actual", fontweight="bold")
         plt.tight_layout()
-        plt.savefig(Path(target_path).stem + '_actual.png', dpi=200, bbox_inches='tight')
+        plt.savefig(output_dir_path / (Path(target_path).stem + '_actual.png'), dpi=200, bbox_inches='tight')
         plt.close()
 
         plt.figure(figsize=(6, 5))
         plt.imshow(predicted_data, interpolation="nearest")
         plt.title(Path(target_path).stem + "_predicted", fontweight="bold")
         plt.tight_layout()
-        plt.savefig(Path(target_path).stem + "_predicted.png", dpi=200, bbox_inches='tight')
+        plt.savefig(output_dir_path / (Path(target_path).stem + "_predicted.png"), dpi=200, bbox_inches='tight')
         plt.close()

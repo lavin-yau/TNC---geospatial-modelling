@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 
 # Generated outputs
+binder_outputs/
+local_outputs/
 *.joblib
 *_actual.png
 *_predicted.png

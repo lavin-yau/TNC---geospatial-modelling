@@ -68,7 +68,7 @@ class Feature_Engineering:
 
         return pd.DataFrame(columns).dropna().reset_index(drop=True)
         
-    def preprocess_data(self, predictor_paths, target_path):
+    def preprocess_data(self, predictor_paths, target_path, sample_rows=None, random_state=42):
         # convert the GeoTiff file into a dataframe
         raw_datafile = self.geotiffs_to_dataframe(predictor_paths, target_path)
         # replace values of -9999 with NaN (to represent missing values)
@@ -80,6 +80,8 @@ class Feature_Engineering:
         # One-hot encode them (so that the model can better understand the data)
         # drop_first=True (avoids multicollinearity)
         raw_datafile = pd.get_dummies(raw_datafile, columns=cat_cols, drop_first=True)
+        if sample_rows is not None and len(raw_datafile) > sample_rows:
+            raw_datafile = raw_datafile.sample(n=sample_rows, random_state=random_state)
         return raw_datafile
     
     '''
@@ -92,23 +94,25 @@ class Feature_Engineering:
     (Note: The processed data_file will be rewritten to the original path)
     '''
     # preprocesses the data and conducts different visualizations on the different variables
-    def create_visualizations(self, predictor_paths, target_path):
-        processed_df = self.preprocess_data(predictor_paths, target_path)
+    def create_visualizations(self, predictor_paths, target_path, output_dir=".", sample_rows=None):
+        processed_df = self.preprocess_data(predictor_paths, target_path, sample_rows=sample_rows)
         # get the stem of the current file
         file_stem = Path(target_path).stem
-        self.create_correlation_matrix(processed_df, file_stem)
-        self.create_pair_plot(processed_df, file_stem)
+        self.create_correlation_matrix(processed_df, file_stem, output_dir=output_dir)
+        self.create_pair_plot(processed_df, file_stem, output_dir=output_dir)
 
     # same as previous method but also includes scatter plot
-    def create_visualizations_include_scatter(self, predictor_paths, target_path, target_variable):
-        processed_df = self.preprocess_data(predictor_paths, target_path)
+    def create_visualizations_include_scatter(self, predictor_paths, target_path, target_variable, output_dir=".", sample_rows=None, include_pair_plot=True, include_scatter_plots=True):
+        processed_df = self.preprocess_data(predictor_paths, target_path, sample_rows=sample_rows)
         # get the stem of the current file
         file_stem = Path(target_path).stem
-        self.create_correlation_matrix(processed_df, file_stem)
-        self.create_pair_plot(processed_df, file_stem)
-        self.create_scatter_plots(processed_df, file_stem, target_variable)
+        self.create_correlation_matrix(processed_df, file_stem, output_dir=output_dir)
+        if include_pair_plot:
+            self.create_pair_plot(processed_df, file_stem, output_dir=output_dir, sample_rows=sample_rows)
+        if include_scatter_plots:
+            self.create_scatter_plots(processed_df, file_stem, target_variable, output_dir=output_dir, sample_rows=sample_rows)
 
-    def create_correlation_matrix(self, df, file_stem):
+    def create_correlation_matrix(self, df, file_stem, output_dir="."):
         # Compute correlations
         corr = df.corr()
         # Mask the upper triangle (avoid duplicate info)
@@ -150,9 +154,11 @@ class Feature_Engineering:
         for spine in ax.spines.values():
             spine.set_edgecolor('#444466')
 
+        output_path = Path(output_dir) / (file_stem + "_correlation_matrix.png")
         plt.tight_layout()
-        plt.savefig(file_stem + "_correlation_matrix.png", dpi=300,
+        plt.savefig(output_path, dpi=300,
                     bbox_inches="tight", facecolor=fig.get_facecolor())
+        plt.close(fig)
 
     """
         Creates and saves scatter plots of each predictor variable vs the target variable we're trying to model.
@@ -163,7 +169,7 @@ class Feature_Engineering:
         Output:
             saves scatter plot grid as a PNG file
         """
-    def create_scatter_plots(self, df, file_stem, target_col):
+    def create_scatter_plots(self, df, file_stem, target_col, output_dir=".", sample_rows=3000):
         predictor_vars = [col for col in df.columns if col != target_col]
         n_vars = len(predictor_vars)
         n_cols = 3
@@ -171,7 +177,7 @@ class Feature_Engineering:
 
         # Remove zero/nodata rows
         df_clean = df[(df > 0).all(axis=1)]
-        sample_df = df_clean.sample(n=min(3000, len(df_clean)))
+        sample_df = df_clean.sample(n=min(sample_rows, len(df_clean)))
 
         with plt.style.context('dark_background'):
             fig, axes = plt.subplots(n_rows, n_cols, figsize=(7 * n_cols, 5 * n_rows), facecolor='#1a1a2e')
@@ -193,15 +199,17 @@ class Feature_Engineering:
             for idx in range(n_vars, len(axes)):
                 axes[idx].axis('off')
 
+            output_path = Path(output_dir) / (file_stem + '_scatter_plots.png')
             plt.tight_layout()
-            plt.savefig(file_stem + '_scatter_plots.png', dpi=200, bbox_inches='tight', facecolor=fig.get_facecolor())
+            plt.savefig(output_path, dpi=200, bbox_inches='tight', facecolor=fig.get_facecolor())
+            plt.close(fig)
 
-    def create_pair_plot(self, df, file_stem):
+    def create_pair_plot(self, df, file_stem, output_dir=".", sample_rows=3000):
         # Drop rows where any value is zero or negative
         df_clean = df[(df > 0).all(axis=1)]
 
         # Cap at 3000 points (to avoid the plot being visually cluttered)
-        df_sampled = df_clean.sample(n=min(3000, len(df_clean)))
+        df_sampled = df_clean.sample(n=min(sample_rows, len(df_clean)))
 
         # Dark background styling to match the correlation matrix
         with plt.style.context('dark_background'):
@@ -229,9 +237,11 @@ class Feature_Engineering:
                 color="white", y=1.01
             )
 
+            output_path = Path(output_dir) / (file_stem + "_pair_plot.png")
             plt.savefig(
-                file_stem + "_pair_plot.png",
+                output_path,
                 dpi=200,
                 bbox_inches="tight",
                 facecolor=pair_plot.figure.get_facecolor()
             )
+            plt.close(pair_plot.figure)

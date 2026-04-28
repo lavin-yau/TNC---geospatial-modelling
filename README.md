@@ -2,11 +2,25 @@
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/lavin-yau/TNC---geospatial-modelling/main?urlpath=lab/tree/binder/TNC_Binder_Demo.ipynb)
 
-This repository contains a GeoTIFF-based modeling workflow for the Chimney Springs Snow Cover Duration example. It includes the original Python scripts for local development, plus a separate Binder-ready demo notebook that is intentionally smaller so it can run within Binder's memory and compute limits.
+## Intro Summary
 
-## What Binder Opens
+This repository contains a reproducible GeoTIFF-based machine learning workflow for the Chimney Springs Snow Cover Duration example. It keeps the original script-based workflow intact while also providing smaller, demo-ready entry points for teaching, review, and reproducibility.
 
-Binder does not open the full workflow. It opens [`binder/TNC_Binder_Demo.ipynb`](./binder/TNC_Binder_Demo.ipynb), which is a lightweight demo session designed to:
+The project has three main paths:
+
+- the original Python scripts in [`scripts/`](./scripts) for full local modeling
+- a lightweight Binder notebook for an in-browser demonstration
+- a Docker setup for running the original scripts in a consistent local environment
+
+The full local workflow is the best option for heavier modeling and larger raster-derived samples. Binder is intentionally smaller because free Binder sessions have limited memory and compute.
+
+## Binder
+
+Launch the demo notebook here:
+
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/lavin-yau/TNC---geospatial-modelling/main?urlpath=lab/tree/binder/TNC_Binder_Demo.ipynb)
+
+Binder opens [`binder/TNC_Binder_Demo.ipynb`](./binder/TNC_Binder_Demo.ipynb), not the full workflow. This notebook is a lightweight demo session designed to:
 
 - sample a smaller slice of the raster-derived dataframe
 - train only `ExtraTreesRegressor`
@@ -14,6 +28,38 @@ Binder does not open the full workflow. It opens [`binder/TNC_Binder_Demo.ipynb`
 - avoid the heavier multi-model sweep and larger plotting workload
 
 That split is deliberate. Binder is great for showing the project and proving the pipeline works, but it is not a good place to run the full raster-to-model workflow at full size.
+
+The Binder environment is defined in [`binder/environment.yml`](./binder/environment.yml). Use the Binder notebook for a quick reproducibility demo, then run the full workflow locally or with Docker when you need the complete training and evaluation process.
+
+## Docker
+
+The Docker setup runs the original three scripts locally inside a reproducible container. This is useful when you want the full script workflow without manually installing the Python geospatial and machine learning dependencies on your computer.
+
+Build the image from the repository root:
+
+```bash
+docker build -t tnc-geospatial-modelling .
+```
+
+Run the original workflow:
+
+```bash
+docker run --rm -it tnc-geospatial-modelling
+```
+
+By default, the container runs:
+
+```bash
+python scripts/User.py
+```
+
+The Docker workflow uses the same GeoTIFF inputs under:
+
+```text
+ML_Modeling_Files/TIFF_Files_For_Model/Chimney_Springs_P-dry/
+```
+
+Generated local outputs are written to `local_outputs/`, which is ignored by git.
 
 ## Repository Layout
 
@@ -66,7 +112,7 @@ The repository includes the Chimney Springs predictor rasters using the short fi
 
 ## Running Locally
 
-If you want the full workflow, use the local notebook or run:
+If you do not want to use Docker, you can run the full workflow directly from your local Python environment:
 
 ```bash
 python scripts/User.py

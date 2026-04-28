@@ -73,21 +73,6 @@ Generated local outputs are written to `local_outputs/`, which is ignored by git
 - [`TNC_Modeling_Demo.ipynb`](./TNC_Modeling_Demo.ipynb) is the fuller local notebook.
 - [`ML_Modeling_Files/TIFF_Files_For_Model/Chimney_Springs_P-dry/`](./ML_Modeling_Files/TIFF_Files_For_Model/Chimney_Springs_P-dry) holds the GeoTIFF inputs.
 
-## How The Two Paths Differ
-
-The local workflow and the Binder demo share the same core code, but they are used differently:
-
-1. Local workflow:
-   - uses the full scripts in `scripts/`
-   - can run larger samples and more expensive plots
-   - is the place for the full modeling pipeline
-
-2. Binder demo:
-   - uses the same scripts, but through a smaller notebook wrapper
-   - samples fewer rows to keep memory use down
-   - uses only one model, `ExtraTreesRegressor`
-   - keeps pair plots optional instead of default
-   - writes generated plots and joblib files to `binder_outputs/`
 
 ## Data
 

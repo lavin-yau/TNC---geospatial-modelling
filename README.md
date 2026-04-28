@@ -33,7 +33,9 @@ The Binder environment is defined in [`binder/environment.yml`](./binder/environ
 
 ## Docker
 
-The Docker setup runs the original three scripts locally inside a reproducible container. This is useful when you want the full script workflow without manually installing the Python geospatial and machine learning dependencies on your computer.
+The Docker setup runs the original three scripts locally inside a reproducible container. This is useful when you want the full script workflow without manually installing Python geospatial and machine learning dependencies on your computer.
+
+Docker Desktop for Mac/Windows/Linux is required. 
 
 Build the image from the repository root:
 
@@ -45,18 +47,6 @@ Run the original workflow:
 
 ```bash
 docker run --rm -it tnc-geospatial-modelling
-```
-
-By default, the container runs:
-
-```bash
-python scripts/User.py
-```
-
-The Docker workflow uses the same GeoTIFF inputs under:
-
-```text
-ML_Modeling_Files/TIFF_Files_For_Model/Chimney_Springs_P-dry/
 ```
 
 Generated local outputs are written to `local_outputs/`, which is ignored by git.
